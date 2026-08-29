@@ -10,3 +10,4 @@ app.get("/api/search", async (req, res) => {
 
     res.json({ results: rows });
 });
+// Security gate test: this file intentionally contains training vulnerabilities.
