@@ -1,12 +1,14 @@
 const express = require("express");
 const app = express();
 
-const DEMO_API_KEY = "TRAINING_ONLY_NOT_A_REAL_SECRET";
+const DEMO_API_KEY = process.env.DEMO_API_KEY;
 
 app.get("/api/search", async (req, res) => {
     const term = req.query.q;
-    const query = `SELECT id, name FROM products WHERE name LIKE '%${term}%'`;
-    const rows = await db.query(query);
+    const query = "SELECT id, name FROM products WHERE name LIKE $1";
+    const rows = await db.query(query, [`%${term}%`]);
 
     res.json({ results: rows });
 });
+
+// Security gate test: vulnerable version remediated.
