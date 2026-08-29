@@ -1,0 +1,5 @@
+[MEDIUM] VAL001 apps/backend/src/api/search/route.ts:10 - Request input is used without visible server-side validation.
+[HIGH] SQL001 apps/backend/src/api/search/route.ts:20 - Possible unparameterized SQL query construction using request input.
+
+Total findings: 2
+Scanned 6 file(s).

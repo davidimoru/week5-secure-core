@@ -1,0 +1,6 @@
+[HIGH] SECRET001 training-fixtures/vulnerable.js:4 - Hardcoded secret or API key-like value detected.
+[MEDIUM] VAL001 training-fixtures/vulnerable.js:7 - Request input is used without visible server-side validation.
+[HIGH] SQL001 training-fixtures/vulnerable.js:8 - Possible unparameterized SQL query construction using request input.
+
+Total findings: 3
+Scanned 1 file(s).
