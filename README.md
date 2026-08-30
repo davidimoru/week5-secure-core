@@ -1,127 +1,233 @@
-# Week 5 Secure Core — Vulnerability Scanner
+# Week 5 DevSecOps Security Gate Dossier
 
-## Overview
+## Operation: Secure Core — Cohort 2
 
-This project contains a Python-based static vulnerability scanner developed and reviewed during Week 5 of the Secure Core training.
+This repository demonstrates a DevSecOps security gate that detects security weaknesses in application code, blocks vulnerable changes, verifies security remediation, and documents the resulting security controls.
 
-The scanner analyzes JavaScript and TypeScript source files for several common security weaknesses.
+The workflow follows:
 
-## Scanner Rules
+**Detect → Fix → Verify → Enforce → Document**
 
-### SECRET001 — Hardcoded Secret
+The project uses a Python static vulnerability scanner integrated with GitHub Actions.
 
-Detects secret-like values assigned directly to variables, including API keys, tokens, passwords, and private keys.
+---
 
-**Severity:** HIGH
+## 1. Project Purpose
 
-### SQL001 — Unparameterized SQL
+The purpose of this project is to demonstrate that insecure code can be detected automatically before it progresses through a development pipeline.
 
-Detects simple SQL query construction where request-derived input is inserted directly into an SQL query.
+The project demonstrates:
 
-**Severity:** HIGH
+1. A vulnerable training fixture producing HIGH security findings.
+2. A non-zero scanner exit code for vulnerable code.
+3. Secure remediation of the identified vulnerabilities.
+4. A passing local scan after remediation.
+5. A failed GitHub Actions security gate for vulnerable code.
+6. A successful GitHub Actions security gate after remediation.
+7. Security policy requirements mapped to technical controls and evidence.
+8. Secret-hygiene checks before submission.
 
-### VAL001 — Missing Visible Validation
+---
 
-Detects request input from `req.query`, `req.body`, or `req.params` when no obvious server-side validation is visible nearby.
+## 2. Tools and Versions
 
-**Severity:** MEDIUM
+The project uses:
 
-### EXEC001 — Dangerous Command Execution
+* Kali Linux
+* Python 3
+* Git
+* GitHub
+* GitHub Actions
+* actions/checkout@v4
+* actions/setup-python@v5
 
-Detects suspicious `exec()` or `eval()` usage involving request-derived input.
+The scanner is implemented in `tools/vulnerability_scanner.py`.
 
-**Severity:** HIGH
+---
 
-### JWT001 — Weak JWT Secret
+## 3. Vulnerability Scanner
 
-Detects weak literal JWT signing secrets, including common weak values and short secrets.
+The scanner performs static pattern-based analysis of JavaScript and TypeScript files.
 
-**Severity:** HIGH
+### Scanner Rules
 
-## Training Fixture Testing
+| Rule      | Severity | Purpose                                                             |
+| --------- | -------- | ------------------------------------------------------------------- |
+| SECRET001 | HIGH     | Detects hardcoded secret or API-key-like values                     |
+| SQL001    | HIGH     | Detects possible unparameterized SQL query construction             |
+| VAL001    | MEDIUM   | Detects request input without visible validation                    |
+| EXEC001   | HIGH     | Detects dangerous command execution involving request-derived input |
+| JWT001    | HIGH     | Detects weak literal JWT signing secrets                            |
 
-The scanner was tested against three intentionally vulnerable training fixtures.
+A HIGH finding causes the scanner to return exit code `1`.
 
-### vulnerable.js
+A scan with no HIGH findings returns exit code `0`.
 
-Detected:
+---
+
+## 4. Task 1 — Failed Local Scan
+
+The vulnerable training fixture is `training-fixtures/vulnerable.js`.
+
+Run the following commands:
+
+```
+python3 tools/vulnerability_scanner.py training-fixtures/vulnerable.js
+echo $?
+```
+
+The vulnerable version produced HIGH findings including:
 
 * SECRET001 — HIGH
-* VAL001 — MEDIUM
 * SQL001 — HIGH
 
-**Total: 3 findings**
+The scanner returned exit code `1`.
 
-### missed.js
+Evidence: `evidence/local-failed-scan.png`
 
-Detected:
+This demonstrates that the scanner detects the vulnerable code and produces a failing result.
 
-* VAL001 — MEDIUM
-* EXEC001 — HIGH
+---
 
-**Total: 2 findings**
+## 5. Task 2 — Remediation
 
-This test demonstrated that the improved scanner successfully detected the dangerous `exec()` pattern that the original AI-generated scanner missed.
+The vulnerable implementation contained security weaknesses including a hardcoded secret and SQL query construction using request-derived input.
 
-### jwt-weak.js
+The remediation included:
 
-Detected:
+* Moving the demonstration API key to environment-based configuration.
+* Replacing direct SQL string construction with a parameterized query.
+* Adding visible request validation where required by the training fixture.
+* Replacing unsafe command execution with an allow-list of permitted commands in the command-execution training fixture.
+* Replacing the weak JWT signing secret with environment-based configuration.
 
-* SECRET001 — HIGH
-* JWT001 — HIGH
+The important security principle is that the vulnerable code was corrected rather than simply hiding the scanner output.
 
-**Total: 2 findings**
+The corrected SQL implementation uses a parameterized query:
 
-This demonstrated that the improved scanner can identify a weak JWT signing secret in addition to the generic hardcoded-secret finding.
+```
+const query =
+  "SELECT id, name FROM products WHERE name LIKE $1";
+const rows = await db.query(query, [`%${term}%`]);
+```
 
-## Real Medusa Backend Testing
+Parameterized queries prevent request input from being interpreted as part of the SQL statement.
 
-The scanner was tested against the actual Medusa backend source:
+---
 
-`apps/backend/src`
+## 6. Task 3 — Successful Local Scan
 
-The scanner analyzed 6 JavaScript/TypeScript files and identified:
+Run:
 
-* VAL001 — MEDIUM — Request input without visible validation
-* SQL001 — HIGH — Possible unparameterized SQL query construction using request input
+```
+python3 tools/vulnerability_scanner.py training-fixtures/fixed.js
+echo $?
+```
 
-**Total: 2 findings**
+The corrected fixture produced no HIGH findings and returned exit code `0`.
 
-The SQL finding corresponds to the intentionally vulnerable search endpoint:
+A MEDIUM validation finding may be reported depending on the scanner rule configuration. The security gate is configured to fail on HIGH findings.
 
-`apps/backend/src/api/search/route.ts`
+Evidence: `evidence/local-passed-scan.png`
 
-The endpoint constructs an SQL query using request input:
+A passing scan does not prove that the entire application is secure. It proves that the configured scanner rules passed for the tested file.
 
-`req.query.q`
+---
 
-and inserts that value directly into the SQL query string.
+## 7. Task 4 — GitHub Actions Security Gate
 
-## AI Scanner Review
+The automated security workflow is located at `.github/workflows/security-scan.yml`.
 
-The original AI-generated scanner successfully detected hardcoded secrets, missing visible validation, and the SQL injection pattern.
+The workflow:
 
-However, testing revealed two important limitations:
+1. Checks out the repository.
+2. Sets up Python.
+3. Runs the vulnerability scanner.
+4. Allows the scanner's exit code to determine whether the security gate passes or fails.
 
-1. It did not specifically detect dangerous `exec()` or `eval()` usage involving request-derived input.
-2. It did not specifically identify weak JWT signing secrets.
+The security-gate step does not use `|| true` or `continue-on-error: true`, because those mechanisms could hide scanner failures.
 
-The scanner was therefore improved with:
+### Failed Pipeline
 
-* `EXEC001`
-* `JWT001`
+The vulnerable version was pushed to the test branch.
 
-The original scanner was preserved as:
+GitHub Actions detected the security findings and marked the security scan as failed.
 
-`tools/vulnerability_scanner_ai_draft.py`
+Evidence: `evidence/failed-pipeline.png`
 
-A pre-Medusa-fix version was also preserved as:
+### Passed Pipeline
 
-`tools/vulnerability_scanner_before_medusa_fix.py`
+After remediation, the corrected code was pushed.
 
-## Limitations
+The GitHub Actions security scan completed successfully and the pull request security check passed.
 
-This scanner uses static pattern matching rather than full program analysis.
+Evidence: `evidence/passed-pipeline.png`
+
+---
+
+## 8. Security Policy
+
+The repository contains a practical security policy covering:
+
+* Data at Rest
+* Data in Transit
+* Access Control
+* Incident Response
+* Acceptable Use
+
+See `security-policy.md`.
+
+---
+
+## 9. Control Register
+
+The control register maps policy requirements to:
+
+* Policy statements
+* Technical controls
+* Verification methods
+* Evidence
+
+See `control-register.md`.
+
+---
+
+## 10. Peer Review
+
+Peer-review feedback and the resulting changes are documented in `peer-review.md`.
+
+The submitted security policy represents the final version after review.
+
+---
+
+## 11. Secret Hygiene
+
+Before submission, the repository was checked for accidentally committed passwords, API keys, private keys, tokens, and other sensitive credentials.
+
+The documented check is `evidence/secret-hygiene-check.md`.
+
+No real credentials were intentionally committed to the repository.
+
+---
+
+## 12. Evidence Review
+
+The evidence directory contains four required screenshots:
+
+| Evidence                | Purpose                                       |
+| ----------------------- | --------------------------------------------- |
+| `local-failed-scan.png` | Vulnerable code produces a failing local scan |
+| `local-passed-scan.png` | Corrected code passes the local security gate |
+| `failed-pipeline.png`   | GitHub Actions blocks the vulnerable change   |
+| `passed-pipeline.png`   | GitHub Actions accepts the corrected change   |
+
+These screenshots provide visual evidence of the Detect → Fix → Verify → Enforce process.
+
+---
+
+## 13. Scanner Limitations
+
+The scanner uses static pattern matching rather than full program analysis.
 
 It may:
 
@@ -133,31 +239,73 @@ It may:
 
 Therefore, a clean scan does not prove that an application is secure.
 
-Scanner findings should be treated as early warnings requiring human review.
+Scanner results should be treated as security signals requiring appropriate human review.
 
-## Project Structure
+---
 
-```text
+## 14. Project Structure
+
+```
 week5-secure-core/
-├── artifacts/
-│   ├── final-scan-summary.md
-│   ├── medusa-backend-scan.txt
-│   └── scanner-findings.txt
+├── .github/
+│   └── workflows/
+│       └── security-scan.yml
+├── evidence/
+│   ├── failed-pipeline.png
+│   ├── local-failed-scan.png
+│   ├── local-passed-scan.png
+│   ├── passed-pipeline.png
+│   └── secret-hygiene-check.md
 ├── tools/
 │   ├── vulnerability_scanner.py
 │   ├── vulnerability_scanner_ai_draft.py
 │   └── vulnerability_scanner_before_medusa_fix.py
 ├── training-fixtures/
 │   ├── vulnerable.js
+│   ├── fixed.js
 │   ├── missed.js
 │   └── jwt-weak.js
+├── artifacts/
+├── control-register.md
+├── peer-review.md
 ├── scanner-review.md
+├── security-policy.md
+├── .gitignore
 └── README.md
 ```
 
-## Conclusion
+---
 
-The Week 5 scanner was iteratively tested and improved using intentionally vulnerable fixtures and the existing Medusa training project.
+## 15. Reproduction Summary
 
-The final scanner successfully detects the SQL injection pattern in the Medusa search endpoint and provides additional detection for dangerous command execution and weak JWT secrets.
+### Failed Security Gate
 
+```
+python3 tools/vulnerability_scanner.py training-fixtures/vulnerable.js
+echo $?
+```
+
+Expected result: a HIGH finding and exit code `1`.
+
+### Successful Security Gate
+
+```
+python3 tools/vulnerability_scanner.py training-fixtures/fixed.js
+echo $?
+```
+
+Expected result: no HIGH findings and exit code `0`.
+
+### Automated Verification
+
+GitHub Actions automatically runs the scanner when the configured branch or pull request workflow is triggered.
+
+A non-zero scanner result causes the security-gate workflow to fail.
+
+---
+
+## 16. Conclusion
+
+This project demonstrates an automated DevSecOps security control that can detect vulnerable code, block insecure changes, verify remediation, and provide documented evidence of the security decision.
+
+The security gate is intentionally limited to the rules implemented by the scanner and therefore should be combined with code review, testing, secure configuration, dependency management, and other security controls.
