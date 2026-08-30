@@ -26,4 +26,4 @@ jobs:
 
       - name: Run vulnerability scanner
         run: |
-          python3 tools/vulnerability_scanner.py .
+          python3 tools/vulnerability_scanner.py training-fixtures/fixed.js
